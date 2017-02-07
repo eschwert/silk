@@ -5,8 +5,8 @@ import java.util.logging.Logger
 
 import org.apache.jena.riot.{Lang, RDFDataMgr}
 import org.silkframework.dataset.rdf.{SparqlEndpoint, SparqlParams}
-import org.silkframework.dataset.{EntitySink, LinkSink, TripleSink, TypedProperty}
-import org.silkframework.entity.{Link, ValueType}
+import org.silkframework.dataset._
+import org.silkframework.entity.{Link, TypedPath, ValueType}
 import org.silkframework.plugins.dataset.rdf.formatters.RdfFormatter
 
 /**
@@ -16,7 +16,7 @@ class SparqlSink(params: SparqlParams,
                  endpoint: SparqlEndpoint,
                  formatterOpt: Option[RdfFormatter] = None,
                  /**Maximum number of statements per request. */
-                 statementsPerRequest: Int = 200) extends EntitySink with LinkSink with TripleSink {
+                 statementsPerRequest: Int = 200) extends FlatEntitySink with LinkSink with TripleSink {
 
   private val log = Logger.getLogger(classOf[SparqlSink].getName)
 
@@ -26,7 +26,7 @@ class SparqlSink(params: SparqlParams,
 
   private var properties = Seq[TypedProperty]()
 
-  override def open(properties: Seq[TypedProperty]) {
+  override def openFlat(properties: Seq[TypedProperty]) {
     this.properties = properties
   }
 

@@ -17,7 +17,7 @@ package org.silkframework.dataset
 import java.util.logging.Logger
 
 import org.silkframework.config.Task
-import org.silkframework.entity.{Link, ValueType}
+import org.silkframework.entity.{Link, TypedPath, ValueType}
 import org.silkframework.runtime.serialization.{ReadContext, WriteContext, XmlFormat}
 import org.silkframework.util.Identifier
 
@@ -63,13 +63,13 @@ class DatasetTask(val id: Identifier,
     /**
       * Initializes this writer.
       */
-    override def open(properties: Seq[TypedProperty]) {
+    override def open(paths: Seq[TypedPath]) {
       if (isOpen) {
         writer.close()
         isOpen = false
       }
 
-      writer.open(properties)
+      writer.open(paths)
       entityCount = 0
       isOpen = true
     }

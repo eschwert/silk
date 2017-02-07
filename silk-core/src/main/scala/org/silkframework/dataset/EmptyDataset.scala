@@ -1,6 +1,6 @@
 package org.silkframework.dataset
 
-import org.silkframework.entity.{Entity, EntitySchema, Link}
+import org.silkframework.entity.{Entity, EntitySchema, Link, TypedPath}
 import org.silkframework.util.Uri
 
 /**
@@ -30,9 +30,9 @@ private object EmptyDataset extends Dataset {
     /**
      * Initializes this writer.
      *
-     * @param properties The list of properties of the entities to be written.
+     * @param paths The list of paths of the entities to be written.
      */
-    override def open(properties: Seq[TypedProperty]): Unit = {}
+    override def open(paths: Seq[TypedPath]): Unit = {}
 
     override def close(): Unit = {}
   }

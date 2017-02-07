@@ -2,14 +2,14 @@ package org.silkframework.plugins.dataset.rdf.formatters
 
 import java.io._
 
-import org.silkframework.dataset.{EntitySink, TripleSink, TypedProperty}
+import org.silkframework.dataset.{EntitySink, FlatEntitySink, TripleSink, TypedProperty}
 import org.silkframework.entity.ValueType
 import org.silkframework.runtime.resource.{FileResource, WritableResource}
 
 /**
  * Created by andreas on 12/11/15.
  */
-class FormattedEntitySink(resource: WritableResource, formatter: EntityFormatter) extends EntitySink with TripleSink {
+class FormattedEntitySink(resource: WritableResource, formatter: EntityFormatter) extends FlatEntitySink with TripleSink {
 
   private var properties = Seq[TypedProperty]()
 
@@ -21,7 +21,7 @@ class FormattedEntitySink(resource: WritableResource, formatter: EntityFormatter
 
   private var writer: Writer = _
 
-  override def open(properties: Seq[TypedProperty]) {
+  override def openFlat(properties: Seq[TypedProperty]) {
     this.properties = properties
     // If we got a java file, we write directly to it, otherwise we write to a temporary string
     writer = javaFile match {
@@ -59,7 +59,7 @@ class FormattedEntitySink(resource: WritableResource, formatter: EntityFormatter
   }
 
   override def init(): Unit = {
-    open(properties = Seq())
+    openFlat(properties = Seq())
   }
 
   override def writeTriple(subject: String, predicate: String, value: String, valueType: ValueType): Unit = {

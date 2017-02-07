@@ -8,7 +8,7 @@ class CsvSink(resource: WritableResource, settings: CsvSettings) extends DataSin
   @volatile
   private var writerOpt: Option[CsvWriter] = None
 
-  def open(properties: Seq[TypedProperty] = Seq.empty) {
+  def openFlat(properties: Seq[TypedProperty] = Seq.empty) {
     writerOpt = Some(new CsvWriter(resource, properties, settings))
   }
 

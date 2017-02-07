@@ -1,6 +1,6 @@
 package org.silkframework.rule.execution
 
-import org.silkframework.dataset.{DataSource, EntitySink, TypedProperty}
+import org.silkframework.dataset.{DataSource, EntitySink}
 import org.silkframework.entity.EntitySchema
 import org.silkframework.rule.execution.TransformReport.RuleError
 import org.silkframework.rule.{DatasetSelection, MappingTarget, TransformRule}
@@ -46,11 +46,8 @@ class ExecuteTransform(input: DataSource,
     try {
       // Open outputs
       val properties = propertyRules.map(_.target.get)
-      for (output <- outputs) output.open(properties map MappingTarget.toTypedProperty)
-      val inputProperties = entitySchema.typedPaths.map { p =>
-        val uri = p.propertyUri.map(_.uri).getOrElse(p.path.toString)
-        TypedProperty(uri, p.valueType)
-      }.toIndexedSeq
+      for (output <- outputs) output.open(properties map MappingTarget.toTypedPath)
+      val inputProperties = entitySchema.typedPaths
       for (errorOutput <- errorOutputs) errorOutput.open(inputProperties)
 
       // Transform all entities and write to outputs

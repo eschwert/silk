@@ -1,6 +1,5 @@
 package org.silkframework.rule
 
-import org.silkframework.dataset.TypedProperty
 import org.silkframework.entity._
 import org.silkframework.rule.input.{Input, PathInput, TransformInput}
 import org.silkframework.rule.plugins.transformer.combine.ConcatTransformer
@@ -92,7 +91,7 @@ object MappingTarget {
     }
   }
 
-  implicit def toTypedProperty(mt: MappingTarget): TypedProperty = TypedProperty(mt.propertyUri.uri, mt.valueType)
+  implicit def toTypedPath(mt: MappingTarget): TypedPath = TypedPath(Path(mt.propertyUri), mt.valueType)
 
 }
 
@@ -201,16 +200,18 @@ case class ComplexMapping(name: Identifier = "mapping", operator: Input, target:
   * The properties of the child entities are mapped by the child mappings.
   *
   * @param name The name of this mapping.
-  * @param relativePath All child mappings are relative to this path.
+  * @param relativePath The relative input path to locate the child entities in the source.
   * @param targetProperty The property that is used to attach the child entities.
   * @param childRules The child rules.
   */
 case class HierarchicalMapping(name: Identifier = "mapping", relativePath: Path = Path(Nil), targetProperty: Uri = "hasChild",
                                override val childRules: Seq[TransformRule]) extends TransformRule {
 
+  override val typeString = "Hierarchical"
+
   override val operator = PathInput(path = relativePath)
 
-  override val target = Some(targetProperty)
+  override val target = Some(MappingTarget(targetProperty, UriValueType))
 
 }
 
