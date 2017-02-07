@@ -2,11 +2,12 @@ package org.silkframework.workspace.xml
 
 import java.util.logging.Logger
 
-import org.silkframework.config.{DatasetSelection, Prefixes, TransformSpecification}
-import org.silkframework.rule.TransformRule
+import org.silkframework.config._
+import org.silkframework.rule.{DatasetSelection, TransformRule, TransformSpec}
 import org.silkframework.runtime.resource.{ResourceLoader, ResourceManager}
-import org.silkframework.runtime.serialization.Serialization._
-import org.silkframework.runtime.serialization.ValidationException
+import org.silkframework.runtime.serialization.ReadContext
+import org.silkframework.runtime.serialization.XmlSerialization._
+import org.silkframework.runtime.validation.ValidationException
 import org.silkframework.util.Identifier
 import org.silkframework.util.XMLUtils._
 
@@ -15,7 +16,7 @@ import scala.xml.XML
 /**
  * The transform module, which encapsulates all transform tasks.
  */
-private class TransformXmlSerializer extends XmlSerializer[TransformSpecification] {
+private class TransformXmlSerializer extends XmlSerializer[TransformSpec] {
 
   private val logger = Logger.getLogger(classOf[TransformXmlSerializer].getName)
 
@@ -24,7 +25,7 @@ private class TransformXmlSerializer extends XmlSerializer[TransformSpecificatio
   /**
    * Writes an updated task.
    */
-  override def writeTask(data: TransformSpecification, resources: ResourceManager): Unit = {
+  override def writeTask(data: Task[TransformSpec], resources: ResourceManager): Unit = {
     val taskResources = resources.child(data.id)
 
     //Don't use any prefixes
@@ -37,7 +38,7 @@ private class TransformXmlSerializer extends XmlSerializer[TransformSpecificatio
   /**
    * Loads all tasks of this module.
    */
-  override def loadTasks(resources: ResourceLoader, projectResources: ResourceManager): Map[Identifier, TransformSpecification] = {
+  override def loadTasks(resources: ResourceLoader, projectResources: ResourceManager): Map[Identifier, TransformSpec] = {
     val tasks =
       for(name <- resources.listChildren) yield
         loadTask(name, resources.child(name), projectResources)
@@ -47,11 +48,12 @@ private class TransformXmlSerializer extends XmlSerializer[TransformSpecificatio
   private def loadTask(name: Identifier, taskResources: ResourceLoader, projectResources: ResourceManager) = {
     try {
       implicit val resources = projectResources
-      val dataset = DatasetSelection.fromXML(XML.load(taskResources.get("dataset.xml").load))
+      implicit val readContext = ReadContext(resources)
+      // Currently the transform spec is distributed in two xml files
+      val datasetXml = XML.load(taskResources.get("dataset.xml").load)
       val rulesXml = XML.load(taskResources.get("rules.xml").load)
-      val rules = (rulesXml \ "TransformRule").map(fromXml[TransformRule])
-      val outputs = (rulesXml \ "Outputs" \ "Output" \ "@id").map(_.text).map(Identifier(_))
-      (name, TransformSpecification(name, dataset, rules, outputs))
+      val xml = rulesXml.copy(child = datasetXml ++ rulesXml.child)
+      (name, fromXml[TransformSpec](xml))
     } catch {
       case ex: ValidationException =>
         throw new ValidationException(s"Error loading task '$name': ${ex.getMessage}", ex)

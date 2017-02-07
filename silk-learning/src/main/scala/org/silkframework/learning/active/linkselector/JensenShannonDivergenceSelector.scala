@@ -15,8 +15,8 @@
 package org.silkframework.learning.active.linkselector
 
 import org.silkframework.entity.{Entity, Link}
-import org.silkframework.evaluation.ReferenceEntities
 import org.silkframework.rule.LinkageRule
+import org.silkframework.rule.evaluation.ReferenceEntities
 import org.silkframework.util.DPair
 
 import scala.math.log
@@ -41,7 +41,7 @@ case class JensenShannonDivergenceSelector(fulfilledOnly: Boolean = true) extend
   /**
    * Ranks a link by updating its confidence to the distance from the closes reference link.
    */
-  def rankLink(dist: Traversable[ReferenceLinkDistance])(link: Link): Link = {
+  private def rankLink(dist: Traversable[ReferenceLinkDistance])(link: Link): Link = {
     val minDist = dist.map(_(link)).min
     link.update(confidence = Some(minDist))
   }

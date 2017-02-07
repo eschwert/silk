@@ -59,8 +59,16 @@ function reloadWorkspace() {
   });
 }
 
+function reloadWorkspaceInBackend() {
+  $.post(baseUrl + '/workspace/reload', function(data) {
+    reloadWorkspace();
+  }).fail(function(request) {
+    alert("Error reloading workspace: " + request.responseText);
+  });
+}
+
 function workspaceDialog(relativePath) {
-  showDialog(baseUrl + '/' + relativePath, reloadWorkspace);
+  showDialog(baseUrl + '/' + relativePath);
 }
 
 function putTask(path, xml) {
@@ -70,12 +78,11 @@ function putTask(path, xml) {
     contentType: 'text/xml',
     processData: false,
     data: xml,
-    success: function(data) {
-      $('.dialog').dialog('close');
-      reloadWorkspace();
-    },
     error: function(request) {
       alert(request.responseText);
+    },
+    success: function(request) {
+      reloadWorkspace();
     }
   });
 }
@@ -94,29 +101,9 @@ function deleteTask(path) {
 }
 
 function deleteTaskConfirm(name, path) {
-  var confirmDialog = document.createElement("div");
-  $(confirmDialog).attr("title",'Delete')
-      .attr("id",'dialog');
-  var dialogText = document.createElement("p");
-  $(dialogText).text("Delete resource: " + name);
-  $(confirmDialog).append(dialogText);
+  showDialog(baseUrl + '/workspace/dialogs/removetask/' + name + "?path=" + encodeURIComponent(path));
+}
 
-  $("#content").append(confirmDialog);
-
-  $("#dialog").dialog({width: 400,
-    modal: true,
-    resizable: false,
-    buttons: {
-      "Yes, delete it": function() {
-        deleteTask(path);
-        $(this).dialog("close");
-      },
-      "Cancel": function() {
-        $(this).dialog("close");
-      }
-    }
-  });
-
-
-
+function deleteResourceConfirm(name, path) {
+  showDialog(baseUrl + '/workspace/dialogs/removeresource/' + name + "?path=" + encodeURIComponent(path), "secondary");
 }

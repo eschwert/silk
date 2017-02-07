@@ -13,14 +13,14 @@ import scala.io.Codec
 """Retrieves all entities from an JSON file."""
 )
 case class JsonDataset(
-  @Param("File name inside the resources directory. In the Workbench, this is the '(projectDir)/resources' directory.")
+  @Param("Json file.")
   file: Resource,
   @Param("The path to the elements to be read, starting from the root element, e.g., '/Persons/Person'. If left empty, all direct children of the root element will be read.")
   basePath: String = "",
   @Param("A URI pattern, e.g., http://namespace.org/{ID}, where {path} may contain relative paths to elements")
   uriPattern: String = "",
   @Param("The file encoding, e.g., UTF8, ISO-8859-1")
-  charset: String = "UTF8") extends DatasetPlugin {
+  charset: String = "UTF8") extends Dataset {
 
   private val codec = Codec(charset)
 

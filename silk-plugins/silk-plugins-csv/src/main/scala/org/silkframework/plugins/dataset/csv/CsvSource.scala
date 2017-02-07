@@ -38,15 +38,15 @@ class CsvSource(file: Resource,
   lazy val propertyList: IndexedSeq[String] = {
     val parser = new CsvParser(Seq.empty, csvSettings)
     if (!properties.trim.isEmpty)
-      parser.parseLine(properties).toIndexedSeq
+      CsvSourceHelper.parse(properties).toIndexedSeq
     else {
       val source = getAndInitBufferedReaderForCsvFile()
       val firstLine = source.readLine()
       source.close()
       if (firstLine != null && firstLine != "") {
         parser.parseLine(firstLine)
-          .takeWhile(_ != null) // Break if a header field is null
-          .map(s => URLEncoder.encode(s, "UTF-8"))
+            .takeWhile(_ != null) // Break if a header field is null
+            .map(s => URLEncoder.encode(s, "UTF-8"))
             .toIndexedSeq
       } else {
         mutable.IndexedSeq()
@@ -132,11 +132,11 @@ class CsvSource(file: Resource,
 
     // Retrieve the indices of the request paths
     val indices =
-      for (path <- entityDesc.paths) yield {
-        val property = path.operators.head.asInstanceOf[ForwardOperator].property.uri.stripPrefix(prefix)
+      for (path <- entityDesc.typedPaths) yield {
+        val property = path.path.operators.head.asInstanceOf[ForwardOperator].property.uri.stripPrefix(prefix)
         val propertyIndex = propertyList.indexOf(property)
         if (propertyIndex == -1)
-          throw new Exception("Property " + path.toString + " not found in CSV")
+          throw new Exception("Property " + property + " not found in CSV "+ file.name +". Available properties: " + propertyList.mkString(", "))
         propertyIndex
       }
 
@@ -157,7 +157,6 @@ class CsvSource(file: Resource,
           var index = 0
           while (line != null) {
             if (!(properties.trim.isEmpty && 0 == index) && (regexFilter.isEmpty || regex.matcher(line).matches())) {
-              logger.log(Level.FINER, s"Retrieving data from CSV [ line number :: ${index + 1} ].")
 
               //Split the line into values
               val allValues = parser.parseLine(line)
@@ -171,16 +170,19 @@ class CsvSource(file: Resource,
                   // However the user can specify a different URI pattern (in the *uri* property), which is then used to
                   // build the entity URI. An example of such pattern is 'urn:zyx:{id}' where *id* is a name of a property
                   // as defined in the *properties* field.
-                  val entityURI = if (uri.isEmpty)
-                    prefix + (index + 1)
-                  else
-                    "\\{([^\\}]+)\\}".r.replaceAllIn(uri, m => {
-                      val propName = m.group(1)
+                  val entityURI =
+                    if (uri.isEmpty && prefix.isEmpty)
+                      file.name + "/" + (index + 1)
+                    else if(uri.isEmpty)
+                      prefix + (index + 1)
+                    else
+                      "\\{([^\\}]+)\\}".r.replaceAllIn(uri, m => {
+                        val propName = m.group(1)
 
-                      assert(propertyList.contains(propName))
-                      val value = allValues(propertyList.indexOf(propName))
-                      URLEncoder.encode(value, "UTF-8")
-                    })
+                        assert(propertyList.contains(propName))
+                        val value = allValues(propertyList.indexOf(propName))
+                        URLEncoder.encode(value, "UTF-8")
+                      })
 
                   //Build entity
                   if (entities.isEmpty || entities.contains(entityURI)) {
@@ -272,7 +274,7 @@ class CsvSource(file: Resource,
     Seq((classUri, 1.0))
   }
 
-  private def classUri = prefix + "CsvTable"
+  private def classUri = prefix + file.name
 }
 
 object SeparatorDetector {
@@ -356,25 +358,46 @@ object SeparatorDetector {
                                                       separator: Char,
                                                       csvSettings: CsvSettings): Int = {
     val parser = new CsvParser(Seq.empty, csvSettings.copy(separator = separator))
-    inputLines takeWhile { line =>
+    inputLines.takeWhile{ line =>
       val fields = parser.parseLine(line)
       fields == null || line.split(separator).size != numberOfFields
-    } size
+    }.size
 
   }
 }
 
 /**
- * The return value of the separator detection
- *
- * @param separator the character used for separating fields in CSV
- * @param numberOfFields the detected number of fields when splitting with this separator
- */
+  * The return value of the separator detection
+  *
+  * @param separator      the character used for separating fields in CSV
+  * @param numberOfFields the detected number of fields when splitting with this separator
+  */
 case class DetectedSeparator(separator: Char, numberOfFields: Int, skipLinesBeginning: Int)
 
-object Test {
-  def main(args: Array[String]): Unit = {
-    val source = new CsvSource(new FileResource(new File("/tmp/loansAndStates.csv")))
-    println(source.nrLines)
+object CsvSourceHelper {
+  lazy val standardCsvParser = new CsvParser(
+    Seq.empty,
+    CsvSettings(separator = ',', quote = Some('"'))
+  )
+
+  def serialize(fields: Traversable[String]): String = {
+    fields.map { field =>
+      if (field.contains("\"") || field.contains(",")) {
+        escapeString(field)
+      } else {
+        field
+      }
+    }.mkString(",")
+  }
+
+  def parse(str: String): Seq[String] = {
+    standardCsvParser.synchronized {
+      standardCsvParser.parseLine(str)
+    }
+  }
+
+  def escapeString(str: String): String = {
+    val quoteReplaced = str.replaceAll("\"", "\"\"")
+    s"""\"$quoteReplaced\""""
   }
 }

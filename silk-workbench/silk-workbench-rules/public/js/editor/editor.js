@@ -38,9 +38,11 @@ var instanceSaved = false;
 
 var confirmOnExit = false;
 
+var defaultRadius = 4;
+
 // Set jsPlumb default values
 jsPlumb.Defaults.Container = "droppable";
-jsPlumb.Defaults.DragOptions = { cursor: 'pointer', zIndex:2000 };
+jsPlumb.Defaults.DragOptions = { cursor: 'pointer', zIndex:2000, stop: function() { saveInstance(); } };
 
 var valueConnectorStyle = {
   lineWidth: 4,
@@ -67,7 +69,7 @@ var endpointValueSource = {
   endpoint: "Dot",
   paintStyle: {
     fillStyle: "#3187CF",
-    radius: 4
+    radius: defaultRadius
   },
   connectorStyle: valueConnectorStyle,
   connectorHoverStyle: valueConnectorHoverStyle,
@@ -82,7 +84,7 @@ var endpointValueTarget = {
   endpoint: "Dot",
   paintStyle: {
     fillStyle: "#3187CF",
-    radius: 4
+    radius: defaultRadius
   },
   connectorStyle: valueConnectorStyle,
   isTarget: true,
@@ -95,7 +97,7 @@ var endpointSimilaritySource = {
   endpoint: "Dot",
   paintStyle: {
     fillStyle: "#BF5741",
-    radius: 4
+    radius: defaultRadius
   },
   connectorStyle: similarityConnectorStyle,
   connectorHoverStyle: similarityConnectorHoverStyle,
@@ -110,7 +112,7 @@ var endpointSimilarityTarget = {
   endpoint: "Dot",
   paintStyle: {
     fillStyle: "#BF5741",
-    radius: 4
+    radius: defaultRadius
   },
   connectorStyle: similarityConnectorStyle,
   isTarget: true,
@@ -126,12 +128,14 @@ document.onselectstart = function ()
 // Warn the user when he leaves the editor that any unsaved modifications are lost.
 window.onbeforeunload = confirmExit;
 
-$(function ()
+function initEditor()
 {
+  jsPlumb.reset();
+
   $("#droppable").droppable({
     drop: function (ev, ui) {
       var draggedClass = $(ui.draggable).attr("class");
-      var boxid = ui.helper.attr('id');
+      var boxId = ui.helper.attr('id');
 
       // Check if we still need to add endpoints to the dropped element
       if(jsPlumb.getEndpoints(ui.helper) === undefined) {
@@ -139,45 +143,31 @@ $(function ()
         ui.helper.appendTo(this);
 
         // Set operator name to current id
-        $('#' + boxid + " .handler label").text(boxid);
+        $('#' + boxId + " .handler label").text(boxId);
 
         // Make operator draggable
-        jsPlumb.draggable($('#' + boxid));
+        jsPlumb.draggable($('#' + boxId));
 
-        if (draggedClass.search(/aggregator/) != -1) {
-          jsPlumb.addEndpoint(boxid, endpointSimilarityTarget);
-          jsPlumb.addEndpoint(boxid, endpointSimilaritySource);
-        }
-        else if (draggedClass.search(/comparator/) != -1) {
-          jsPlumb.addEndpoint(boxid, endpointValueTarget);
-          jsPlumb.addEndpoint(boxid, endpointSimilaritySource);
-        }
-        else if (draggedClass.search(/transform/) != -1) {
-          jsPlumb.addEndpoint(boxid, endpointValueSource);
-          jsPlumb.addEndpoint(boxid, endpointValueTarget);
-        }
-        else if (draggedClass.search(/source/) != -1 || draggedClass.search(/target/) != -1) {
-          jsPlumb.addEndpoint(boxid, endpointValueSource);
-        }
-        else {
-          alert("Invalid Element dropped: " + draggedClass);
-        }
+        addEndpoints(boxId, draggedClass);
 
         // fix the position of the new added box
-        var offset = $('#' + boxid).offset();
+        var offset = $('#' + boxId).offset();
         var scrollleft = $("#droppable").scrollLeft();
         var scrolltop = $("#droppable").scrollTop();
         var top = offset.top-118+scrolltop+scrolltop;
         var left = offset.left-504+scrollleft+scrollleft;
-        $('#' + boxid).attr("style", "left: " + left + "px; top: " + top +  "px; position: absolute;");
-        jsPlumb.repaint(boxid);
+        $('#' + boxId).attr("style", "left: " + left + "px; top: " + top +  "px; position: absolute;");
+        jsPlumb.repaint(boxId);
         modifyLinkSpec();
       }
     }
   });
 
-  $('body').attr('onresize', 'updateWindowSize();');
-  $('body').attr('onunload', 'jsPlumb.unload();');
+  if (inEditorEnv) {
+    $('body').attr('onresize', 'updateWindowSize();');
+  }
+
+
 
   // Delete connections on clicking them
   jsPlumb.bind("click", function(conn, originalEvent) {
@@ -202,8 +192,8 @@ $(function ()
     modifyLinkSpec();
   });
 
-  $("#undo").button({ disabled: true });
-  $("#redo").button({ disabled: true });
+  $("#undo").attr("disabled", true);
+  $("#redo").attr("disabled", true);
 
   $(document).on('click', ".label", function() {
     var current_label = $(this).html();
@@ -235,18 +225,12 @@ $(function ()
     $(this).parent().removeClass('active').attr('title', newPath).html(newPath);
   });
 
-  $(document).on('mouseover', "#source_restriction, #target_restriction", function() {
-    var txt = $(this).text();
-    Tip(txt, DELAY, 20);
-  });
+  if (inEditorEnv) {
+    updateWindowSize();
+    updateScore();
+  }
 
-  $(document).on('mouseout', "#source_restriction, #target_restriction", function() {
-    UnTip();
-  });
-
-  updateScore();
-
-});
+}
 
 function confirmExit() {
   if(confirmOnExit) {
@@ -260,7 +244,9 @@ function generateNewElementId(currentId) {
   do {
     nameExists = false;
     counter = counter + 1;
-    if($("#" + currentId + counter).length > 0) {
+    id = "#" + currentId + counter;
+    alternativeId = "#operator_" + currentId + counter;
+    if($(id).length > 0 || $(alternativeId).length > 0) {
       nameExists = true;
     }
   } while (nameExists);
@@ -269,8 +255,6 @@ function generateNewElementId(currentId) {
 
 function getCurrentElementName(elId) {
   var elName = $("#" + elId + " .handler label").text();
-//  var elName = $("#" + elId + " .content > .label").text();
-//  if (!elName) elName = $("#" + elId + " .content > .label-active > input.label-change").val();
   return elName;
 }
 
@@ -300,8 +284,9 @@ function validateLinkSpec() {
     var elName = getCurrentElementName(elId);
     if (elName.search(/[^a-zA-Z0-9_-]+/) !== -1) {
       errorObj = new Object;
-      errorObj.id = elId;
-      errorObj.message = "Error in element with id '"+ elId +"': An identifier may only contain the following characters (a - z, A - Z, 0 - 9, _, -). The following identifier is not valid: '" + elName + "'.";
+      errorObj.type = "Error";
+      errorObj.id = elName;
+      errorObj.message = "Error in element with id '"+ elName +"': An identifier may only contain the following characters (a - z, A - Z, 0 - 9, _, -). The following identifier is not valid: '" + elName + "'.";
       errors.push(errorObj);
     }
     // count root elements
@@ -316,24 +301,25 @@ function validateLinkSpec() {
     // multiple root elements
     if (root_elements.length > 1) {
       errorObj = new Object();
+      errorObj.type = "Error";
       var elements = "";
       for (var i = 0; i<root_elements.length; i++) {
-        elements += "'" + getCurrentElementName(root_elements[i]) + "'";
+        var currentElementName = getCurrentElementName(root_elements[i]);
+        elements += "'" + currentElementName + "'";
         if (i<root_elements.length-1) {
           elements += ", ";
         } else {
           elements += ".";
         }
-        highlightElement(root_elements[i], "Error: Multiple root elements found.");
+        highlightElement(currentElementName, "Error: Multiple root elements found.");
       }
       errorObj.message = "Error: Multiple root elements found: " + elements;
-      errorObj.id = 0;
       errors.push(errorObj);
 
       // no root elements
     } else if (root_elements.length == 0 && totalNumberElements > 0) {
       errorObj = new Object;
-      errorObj.id = 0;
+      errorObj.type = "Error";
       errorObj.message = "Error: No root element found.";
       errors.push(errorObj);
 
@@ -342,7 +328,7 @@ function validateLinkSpec() {
       cycleCheck(root_elements[0]);
       if (cycleFound) {
         errorObj = new Object();
-        errorObj.id = 0;
+        errorObj.type = "Error";
         errorObj.message = "Error: A cycle was found in the linkage rule.";
         errors.push(errorObj);
       }
@@ -351,7 +337,7 @@ function validateLinkSpec() {
     // forest found
     if ((numberElements > 1) && (totalNumberElements > numberElements)) {
       errorObj = new Object();
-      errorObj.id = 0;
+      errorObj.type = "Error";
       errorObj.message = "Error: Multiple linkage rules found.";
       errors.push(errorObj);
     }
@@ -363,7 +349,7 @@ function validateLinkSpec() {
 
   if (errors.length > 0) {
     // display frontend errors
-    updateEditorStatus(errors, null, null);
+    updateEditorStatus(errors);
   } else {
     // send to server
     $.ajax({
@@ -374,14 +360,13 @@ function validateLinkSpec() {
       data: serializationFunction(),
       dataType: "json",
       success: function(response) {
-        updateEditorStatus(response.error, response.warning, response.info);
+        updateEditorStatus(response.issues);
         updateScore();
         confirmOnExit = false;
       },
       error: function(req) {
         console.log('Error committing rule: ' + req.responseText);
-        var response = jQuery.parseJSON(req.responseText);
-        updateEditorStatus(response.error, response.warning, response.info);
+        updateEditorStatus(req.responseJSON.issues);
       }
     });
   }
@@ -394,34 +379,41 @@ function modifyLinkSpec() {
   modificationTimer = setTimeout(function() { validateLinkSpec(); }, 2000);
 }
 
-function updateEditorStatus(errorMessages, warningMessages, infoMessages) {
+function updateEditorStatus(messages) {
   // Update status icon
-  updateStatus(errorMessages, warningMessages, infoMessages);
+  updateStatus(messages);
   // Highlight elements
-  highlightElements(errorMessages);
+  highlightElements(messages);
 }
 
-function highlightElements(array) {
+function highlightElements(messages) {
   var c = 1;
-  for (var i = 0; i<array.length; i++) {
-    if (array[i].id) highlightElement(array[i].id, encodeHtml(array[i].message));
+  for (var i = 0; i<messages.length; i++) {
+    if (messages[i].id) highlightElement(messages[i].id, encodeHtml(messages[i].message));
     c++;
   }
 }
 
 function highlightElement(elId, message) {
-  var elementToHighlight;
-  $(".label:contains('" + elId + "')").each(function() {
-    if (elId.length == $(this).text().length) elementToHighlight = $(this).parent().parent();
+  $(".handler label").each(function() {
+    if ($(this).text() == elId) {
+      var elementToHighlight = $(this).parent().parent();
+      elementToHighlight.addClass('highlighted');
+      highlightId = elementToHighlight.attr('id');
+      tooltipId = highlightId + "_tooltip";
+      $('#' + tooltipId).text(encodeHtml(message));
+      $('#' + tooltipId).show();
+     // elementToHighlight.prepend('<div class="mdl-tooltip" for="' + elId + '">encodeHtml(message)</div>');
+      jsPlumb.repaint(elementToHighlight);
+     // componentHandler.upgradeAllRegistered();
+    }
   });
-  if (!elementToHighlight) elementToHighlight = $("#" + elId);
-  elementToHighlight.addClass('highlighted').attr('onmouseover', 'Tip("' + encodeHtml(message) + '")').attr("onmouseout", "UnTip()");
-  jsPlumb.repaint(elementToHighlight);
 }
 
 function removeHighlighting() {
   $("div .dragDiv").removeClass('highlighted').removeAttr('onmouseover');
   jsPlumb.repaintEverything();
+  $(".operator-tooltip").hide();
 }
 
 function cycleCheck(elId) {
@@ -449,22 +441,42 @@ function removeElement(elementId) {
   setTimeout(function() {
     jsPlumb.removeAllEndpoints(elementId);
     $('#' + elementId).remove();
-    UnTip();
     modifyLinkSpec();
   }, 100);
 }
 
 function updateWindowSize() {
+  var header_height = $("header").height() + $("#toolbar").height() + $("#tab-bar").height();
   var window_width =  $(window).width();
   var window_height =  $(window).height();
+  var content_padding = 35;
   if (window_width > 1100) {
     $(".wrapperEditor").width(window_width-10);
-    $("#droppable").width(window_width-290);
+    $("#droppable").width(window_width-295);
   }
   if (window_height > 600) {
-    $(".droppable_outer, #droppable").height(window_height - 165);
-    var scrollboxes = $(".scrollboxes");
-    scrollboxes.height((window_height - 165)/scrollboxes.length - 25);
+    // resize height of drawing canvas
+    var height = window_height - header_height - content_padding;
+    $(".droppable_outer, #droppable").height(height);
+    $(".draggables").height(height);
+
+    // resize palette blocks
+    var draggables_padding_height = 10;
+    var draggables_border_height = 2;
+    var palette_header_height = $("#palette-header").outerHeight();
+    var height_diff = palette_header_height + draggables_padding_height + draggables_border_height;
+    var palette_blocks = $(".palette-block");
+    var palette_block_margin = parseInt(palette_blocks.css('margin-top'));
+    palette_block_height = ((height - height_diff)/palette_blocks.length) - palette_block_margin;
+    palette_blocks.height(palette_block_height);
+
+    // resize scroll-boxes
+    var block_header_height = 34;
+    var scrollbox_height = palette_block_height - block_header_height;
+    var scrollboxes_grouped = $('#operators-grouped .scrollboxes');
+    scrollboxes_grouped.height(scrollbox_height);
+    var scrollboxes_search = $('#operators-search-result .scrollboxes');
+    scrollboxes_search.height($(".draggables").height() - height_diff);
   }
 }
 
@@ -476,6 +488,10 @@ function redo() {
 }
 
 function loadInstance(index) {
+
+  // we need to reset jsPlumb to prevent mess-ups due to removing and deleting elements
+  initEditor();
+
   //console.log("loadInstance("+index+")");
   reverting = true;
   instanceIndex = index;
@@ -490,45 +506,26 @@ function loadInstance(index) {
   });
 
   for (var i = 0; i<elements.length; i++) {
-    var endpoint_right = null;
-    var endpoint_left = null;
     var box = elements[i][0].clone();
-    var boxid = box.attr('id');
-    var boxclass = box.attr('class');
+    var boxId = box.attr('id');
+    var boxClass = box.attr('class');
 
     $("#droppable").append(box);
 
-    if (boxclass.search(/aggregate/) != -1) {
-      endpoint_left = jsPlumb.addEndpoint(boxid, endpointSimilarityTarget);
-      endpoint_right = jsPlumb.addEndpoint(boxid, endpointSimilaritySource);
-    }
-    else if (boxclass.search(/compare/) != -1) {
-      endpoint_left = jsPlumb.addEndpoint(boxid, endpointValueTarget);
-      endpoint_right = jsPlumb.addEndpoint(boxid, endpointSimilaritySource);
-    }
-    else if (boxclass.search(/transform/) != -1) {
-      endpoint_left = jsPlumb.addEndpoint(boxid, endpointValueSource);
-      endpoint_right = jsPlumb.addEndpoint(boxid, endpointValueTarget);
-    }
-    else if (boxclass.search(/source/) != -1 || boxclass.search(/target/) != -1) {
-      endpoint_right = jsPlumb.addEndpoint(boxid, endpointValueSource);
-    }
-    else {
-      alert("Invalid Element dropped: " + boxclass);
-    }
+    var boxEndpoints = addEndpoints(boxId, boxClass);
 
-    endpoints[boxid] = endpoint_left;
-    elements[i][2] = endpoint_right;
+    endpoints[boxId] = boxEndpoints.left;
+    elements[i][2] = boxEndpoints.right;
     jsPlumb.draggable(box);
   }
 
   for(var j = 0; j < elements.length; j++) {
-    var endp_left = elements[j][2];
-    var endp_right = endpoints[elements[j][1]];
-    if (endp_left && endp_right) {
+    var endpoint_left = elements[j][2];
+    var endpoint_right = endpoints[elements[j][1]];
+    if (endpoint_left && endpoint_right) {
       jsPlumb.connect({
-        sourceEndpoint: endp_left,
-        targetEndpoint: endp_right
+        sourceEndpoint: endpoint_left,
+        targetEndpoint: endpoint_right
       });
     }
   }
@@ -566,14 +563,14 @@ function saveInstance() {
 
 function updateRevertButtons() {
   if (instanceIndex > 0) {
-    $("#undo").button("enable");
+    $("#undo").attr("disabled", false);
   } else {
-    $("#undo").button("disable");
+    $("#undo").attr("disabled", true);
   }
   if (instanceIndex  < instanceStack.length - 1) {
-    $("#redo").button("enable");
+    $("#redo").attr("disabled", false);
   } else {
-    $("#redo").button("disable");
+    $("#redo").attr("disabled", true);
   }
 }
 
@@ -584,14 +581,20 @@ function encodeHtml(value) {
   return encodedHtml;
 }
 
-function getPropertyPaths() {
+/**
+ * Replaces targetElement with the list of paths.
+ * @targetElement jQuery selector to define the target element
+ * @groupPath boolean - true if we want the grouped list, false if we want an ungrouped list (for the keyword search results)
+ */
+function getPropertyPaths(targetElement, groupPaths) {
   $.ajax({
     type: 'get',
     url: editorUrl + '/widgets/paths',
+    data: { groupPaths: groupPaths },
     complete: function(response, status) {
-      $("#paths").html(response.responseText);
+      $(targetElement).html(response.responseText);
       if(status == "error") {
-        setTimeout('getPropertyPaths()', 2000);
+        setTimeout('getPropertyPaths(' + targetElement + ', ' + groupPaths + ')', 2000);
       } else {
         updateWindowSize();
       }
@@ -612,7 +615,7 @@ function reloadCache() {
     url: apiUrl + '/reloadCache',
     dataType: "xml",
     success: function() {
-      getPropertyPaths();
+      getPropertyPaths('#paths');
       updateScore();
     }
   });
@@ -628,5 +631,31 @@ function updateScore() {
         setTimeout('updateScore()', 2000);
       }
     }
-  })
+  });
+}
+
+function addEndpoints(boxId, boxClass) {
+  var boxEndpoints = {};
+  // todo: instead of doing search() over the class string, maybe using something like $.hasClass would be more intuitive
+  if ((boxClass.search(/aggregator/) != -1) || (boxClass.search(/aggregate/) != -1)) {
+    boxEndpoints.left = jsPlumb.addEndpoint(boxId, endpointSimilarityTarget);
+    boxEndpoints.right = jsPlumb.addEndpoint(boxId, endpointSimilaritySource);
+  }
+  // todo: these classes should be named consistently, not sometimes "compareDiv", and sometimes "comparators"
+  else if ((boxClass.search(/comparator/) != -1) || (boxClass.search(/compare/) != -1)) {
+    boxEndpoints.left = jsPlumb.addEndpoint(boxId, endpointValueTarget);
+    boxEndpoints.right = jsPlumb.addEndpoint(boxId, endpointSimilaritySource);
+  }
+  else if (boxClass.search(/transform/) != -1) {
+    boxEndpoints.left = jsPlumb.addEndpoint(boxId, endpointValueTarget);
+    boxEndpoints.right = jsPlumb.addEndpoint(boxId, endpointValueSource);
+  }
+  else if (boxClass.search(/source/) != -1 || boxClass.search(/target/) != -1) {
+    boxEndpoints.right = jsPlumb.addEndpoint(boxId, endpointValueSource);
+  }
+  else {
+    alert("Invalid Element dropped: " + boxClass);
+  }
+
+  return boxEndpoints;
 }

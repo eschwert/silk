@@ -1,9 +1,13 @@
 package org.silkframework.runtime.activity
 
+import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.{Executors, ThreadFactory}
+
 import org.silkframework.util.StringUtils._
 
 import scala.concurrent.ExecutionContext
 import scala.reflect.ClassTag
+import scala.math.max
 
 /**
  * An activity is a unit of work that can be executed in the background.
@@ -34,6 +38,11 @@ trait Activity[T] extends HasValue {
   def cancelExecution(): Unit = { }
 
   /**
+    * Can be overridden in implementing classes to implement reset behaviour in addition to resetting the activity value to its initial value.
+    */
+  def reset(): Unit = { }
+
+  /**
    * The initial value of this activity, if any.
    */
   def initialValue: Option[T] = None
@@ -51,9 +60,19 @@ object Activity {
 
   /**
    * The execution context used to run activities.
+   * Per default uses a fixed thread pool with as many threads as cores on the machine.
    */
   @volatile
-  var executionContext: ExecutionContext = ExecutionContext.global
+  var executionContext: ExecutionContext = {
+    val minimumNumberOfThreads = 4
+    val threadCount = max(minimumNumberOfThreads, Runtime.getRuntime.availableProcessors())
+    ExecutionContext.fromExecutor(Executors.newFixedThreadPool(threadCount, ActivityThreadFactory))
+  }
+
+  /**
+    * The base path into which all activity output is logged
+    */
+  val loggingPath = "org.silkframework.runtime.activity"
 
   /**
    * Retrieves a control for an activity without executing it.
@@ -78,8 +97,36 @@ object Activity {
         currentActivity = None
       }
       override def cancelExecution() = currentActivity.foreach(_.cancelExecution())
+      override def reset() = currentActivity.foreach(_.reset())
     }
   }
+
+  /**
+    * Thread factory for creating activity threads.
+    * Based on the Java default thread factory, but with better thread naming.
+    */
+  private object ActivityThreadFactory extends ThreadFactory {
+
+    private val namePrefix = "silk-activity-thread-"
+
+    private val threadNumber: AtomicInteger = new AtomicInteger(1)
+
+    private val group: ThreadGroup = {
+      val s = System.getSecurityManager
+      if (s != null)
+        s.getThreadGroup
+      else
+        Thread.currentThread.getThreadGroup
+    }
+
+    def newThread(r: Runnable): Thread = {
+      val t: Thread = new Thread(group, r, namePrefix + threadNumber.getAndIncrement, 0)
+      if (t.isDaemon) t.setDaemon(false)
+      if (t.getPriority != Thread.NORM_PRIORITY) t.setPriority(Thread.NORM_PRIORITY)
+      t
+    }
+  }
+
 }
 
 

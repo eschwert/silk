@@ -21,12 +21,12 @@ class CsvSourceTest extends FlatSpec with Matchers {
   val source = new CsvSource(resources.get("persons.csv"), settings)
 
   "For persons.csv, CsvParser" should "extract the schema" in {
-    val properties = source.retrievePaths("").map(_.propertyUri.get).toSet
+    val properties = source.retrievePaths("").map(_.propertyUri.get.toString).toSet
     properties should equal (Set("ID", "Name", "Age"))
   }
 
   "For persons.csv, CsvParser" should "extract all columns" in {
-    val entityDesc = EntitySchema(typeUri = Uri(""), paths = IndexedSeq(Path("ID"), Path("Name"), Path("Age")))
+    val entityDesc = EntitySchema(typeUri = Uri(""), typedPaths = IndexedSeq(Path("ID").asStringTypedPath, Path("Name").asStringTypedPath, Path("Age").asStringTypedPath))
     val persons = source.retrieve(entityDesc).toIndexedSeq
     persons(0).values should equal (IndexedSeq(Seq("1"), Seq("Max Mustermann"), Seq("30")))
     persons(1).values should equal (IndexedSeq(Seq("2"), Seq("Markus G."), Seq("24")))
@@ -34,7 +34,7 @@ class CsvSourceTest extends FlatSpec with Matchers {
   }
 
   "For persons.csv, CsvParser" should "extract selected columns" in {
-    val entityDesc = EntitySchema(typeUri = Uri(""), paths = IndexedSeq(Path("Name"), Path("Age")))
+    val entityDesc = EntitySchema(typeUri = Uri(""), typedPaths = IndexedSeq(Path("Name").asStringTypedPath, Path("Age").asStringTypedPath))
     val persons = source.retrieve(entityDesc).toIndexedSeq
     persons(0).values should equal (IndexedSeq(Seq("Max Mustermann"), Seq("30")))
     persons(1).values should equal (IndexedSeq(Seq("Markus G."), Seq("24")))
@@ -88,5 +88,16 @@ class CsvSourceTest extends FlatSpec with Matchers {
       ),
       noSeparatorSettings
     ) shouldBe None
+  }
+
+  "CsvSourceHelper" should "escape and unescape standard fields correctly" in {
+    val input = """I said: "What, It escaped?""""
+    val line = CsvSourceHelper.serialize(Seq(input, input, input))
+    val back = CsvSourceHelper.parse(line)
+    for(str <- back) {
+      str shouldBe input
+    }
+    val normal = CsvSourceHelper.serialize(Seq("Just a normal string", "and, not normal"))
+    normal shouldBe "Just a normal string,\"and, not normal\""
   }
 }

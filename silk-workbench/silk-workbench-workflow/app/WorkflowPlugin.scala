@@ -7,8 +7,6 @@ import plugins.{Context, WorkbenchPlugin}
  */
 case class WorkflowPlugin() extends WorkbenchPlugin {
 
-  override def routes = Map("workflow" -> workflow.Routes)
-
   override def tasks = {
     Seq(WorkflowTaskActions)
   }
@@ -17,9 +15,11 @@ case class WorkflowPlugin() extends WorkbenchPlugin {
     var tabs = List[Tab]()
     if(context.task.data.isInstanceOf[Workflow]) {
       val p = context.project.name
-      val t = context.task.name
-      if (config.workbench.tabs.editor)
-        tabs ::= Tab("Editor", s"workflow/$p/$t/editor")
+      val t = context.task.id
+      if (config.workbench.tabs.editor) {
+        tabs ::= Tab("Editor", s"workflow/editor/$p/$t")
+        tabs ::= Tab("Report", s"workflow/report/$p/$t")
+      }
     }
     tabs.reverse
   }
@@ -30,7 +30,7 @@ case class WorkflowPlugin() extends WorkbenchPlugin {
     override def name: String = "Workflow"
 
     /** Path to the task icon */
-    override def icon: String = "img/arrow-switch.png"
+    override def icon: String = controllers.workflow.routes.Assets.at("img/arrow-switch.png").url
 
     /** The path to the dialog for creating a new task. */
     override def createDialog(project: String) =
@@ -42,7 +42,7 @@ case class WorkflowPlugin() extends WorkbenchPlugin {
 
     /** The path to redirect to when the task is opened. */
     override def open(project: String, task: String) =
-      Some(s"workflow/$project/$task/editor")
+      Some(s"workflow/editor/$project/$task")
 
     /** The path to delete the task by sending a DELETE HTTP request. */
     override def delete(project: String, task: String) =

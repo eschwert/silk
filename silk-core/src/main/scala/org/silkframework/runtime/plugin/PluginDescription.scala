@@ -14,12 +14,15 @@
 
 package org.silkframework.runtime.plugin
 
-import java.lang.reflect.{Constructor, InvocationTargetException}
+import java.lang.reflect.{Constructor, InvocationTargetException, ParameterizedType}
 
 import com.thoughtworks.paranamer.BytecodeReadingParanamer
+import org.silkframework.config.Prefixes
 import org.silkframework.runtime.resource.{EmptyResourceManager, ResourceManager}
-import org.silkframework.runtime.serialization.ValidationException
+import org.silkframework.runtime.validation.ValidationException
 import org.silkframework.util.Identifier
+import scala.language.existentials
+import scala.util.control.NonFatal
 
 /**
  * Describes a plugin.
@@ -36,8 +39,8 @@ class PluginDescription[+T](val id: Identifier, val categories: Set[String], val
   /**
    * Creates a new instance of this plugin.
    */
-  def apply(parameterValues: Map[String, String] = Map.empty, resources: ResourceManager = EmptyResourceManager): T = {
-    val parsedParameters = parseParameters(parameterValues, resources)
+  def apply(parameterValues: Map[String, String] = Map.empty)(implicit prefixes: Prefixes, resources: ResourceManager = EmptyResourceManager): T = {
+    val parsedParameters = parseParameters(parameterValues)
     try {
       constructor.newInstance(parsedParameters: _*)
     } catch {
@@ -49,34 +52,19 @@ class PluginDescription[+T](val id: Identifier, val categories: Set[String], val
    * Retrieves the parameters values of a given plugin instance.
    */
   def parameterValues(plugin: AnyRef): Map[String, String] = {
-    parameters.map(param => (param.name, Option(param(plugin)).getOrElse("").toString)).toMap
+    parameters.map(param => (param.name, param.stringValue(plugin))).toMap
   }
 
   override def toString = label
 
-  private def parseParameters(parameterValues: Map[String, String], resourceLoader: ResourceManager): Seq[AnyRef] = {
+  private def parseParameters(parameterValues: Map[String, String])(implicit prefixes: Prefixes, resourceLoader: ResourceManager): Seq[AnyRef] = {
     for (parameter <- parameters) yield {
       parameterValues.get(parameter.name) match {
         case Some(v) =>
           try {
-            parameter.dataType match {
-              case Parameter.Type.String => v
-              case Parameter.Type.Char =>
-                if(v.length == 1) Char.box(v(0))
-                else throw new ValidationException(label + " has an invalid value for parameter " + parameter.name + ". Value must be a single character.")
-              case Parameter.Type.Int => Int.box(v.toInt)
-              case Parameter.Type.Double => Double.box(v.toDouble)
-              case Parameter.Type.Boolean => v.toLowerCase match {
-                case "true" | "1" => Boolean.box(true)
-                case "false" | "0" => Boolean.box(false)
-                case _ => throw new ValidationException(label + " has an invalid value for parameter " + parameter.name + ". Value must be either 'true' or 'false'")
-              }
-              case Parameter.Type.Resource => resourceLoader.get(v, mustExist = false)
-              case Parameter.Type.WritableResource => resourceLoader.get(v, mustExist = false)
-            }
-          }
-          catch {
-            case ex: NumberFormatException => throw new ValidationException(label + " has an invalid value for parameter " + parameter.name + ". Value must be of type " + parameter.dataType, ex)
+            parameter.dataType.fromString(v).asInstanceOf[AnyRef]
+          } catch {
+            case NonFatal(ex) => throw new ValidationException(label + " has an invalid value for parameter " + parameter.name + ". Value must be a valid " + parameter.dataType + ". Issue: " + ex.getMessage, ex)
           }
         case None if parameter.defaultValue.isDefined =>
           parameter.defaultValue.get
@@ -119,7 +107,7 @@ object PluginDescription {
 
   private def createFromClass[T](pluginClass: Class[T]) = {
     new PluginDescription(
-      id = pluginClass.getSimpleName,
+      id = Identifier.fromAllowed(pluginClass.getSimpleName),
       label = pluginClass.getSimpleName,
       categories = Set("Uncategorized"),
       description = "",
@@ -145,28 +133,19 @@ object PluginDescription {
 
     for ((((parName, parType), defaultValue), annotations) <- parameterNames zip parameterTypes zip defaultValues zip paramAnnotations) yield {
       val pluginParam = annotations.headOption
+
+      val label = pluginParam match {
+        case Some(p) if p.label().nonEmpty => p.label()
+        case _ => parName.flatMap(c => if(c.isUpper) " " + c.toLower else c.toString)
+      }
+
       val (description, exampleValue) = pluginParam map { pluginParam =>
         val ex = pluginParam.example()
         (pluginParam.value(), if (ex != "") Some(ex) else defaultValue)
       } getOrElse ("No description", defaultValue)
 
-      val dataType = parType match {
-        case parClass: Class[_] =>
-          parClass.getName match {
-            case "java.lang.String" => Parameter.Type.String
-            case "char" => Parameter.Type.Char
-            case "int" => Parameter.Type.Int
-            case "double" => Parameter.Type.Double
-            case "boolean" => Parameter.Type.Boolean
-            case "org.silkframework.runtime.resource.Resource" => Parameter.Type.Resource
-            case "org.silkframework.runtime.resource.WritableResource" => Parameter.Type.WritableResource
-            case _ => throw new InvalidPluginException("Unsupported parameter type: " + parType)
-          }
-        case _ =>
-          throw new InvalidPluginException("Unsupported parameter type in plugin " + pluginClass.getName + ": " + parType)
-      }
-
-      Parameter(parName, dataType, description, defaultValue, exampleValue)
+      val dataType = ParameterType.forType(parType)
+      Parameter(parName, dataType, label, description, defaultValue, exampleValue)
     }
   }
 

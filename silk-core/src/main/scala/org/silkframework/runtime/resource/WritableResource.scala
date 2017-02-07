@@ -2,7 +2,7 @@ package org.silkframework.runtime.resource
 
 import java.io.{InputStream, OutputStream}
 
-trait WritableResource extends Resource{
+trait WritableResource extends Resource {
 
   /**
     * Preferred method for writing to a resource.
@@ -22,6 +22,15 @@ trait WritableResource extends Resource{
         outputStream.write(b)
         b = inputStream.read()
       }
+    }
+  }
+
+  /**
+    * Writes raw bytes.
+    */
+  def write(bytes: Array[Byte]): Unit = {
+    write { os =>
+      os.write(bytes)
     }
   }
 

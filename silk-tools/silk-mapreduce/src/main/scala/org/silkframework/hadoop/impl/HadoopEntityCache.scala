@@ -19,18 +19,19 @@ import java.util.logging.Logger
 
 import org.apache.hadoop.fs.{FileSystem, Path}
 import org.silkframework.cache.{BitsetIndex, EntityCache, Partition}
-import org.silkframework.config.RuntimeConfig
 import org.silkframework.entity._
-import org.silkframework.entity.rdf.SparqlEntitySchema
+import org.silkframework.rule.RuntimeLinkingConfig
 
 /**
  * An entity cache, which uses the Hadoop FileSystem API.
  * This can be used to cache the entities on any file system which is supported by Hadoop e.g. the Hadoop Distributed FileSystem.
  */
-class HadoopEntityCache(val entityDesc: SparqlEntitySchema,
+class HadoopEntityCache(val entityDesc: EntitySchema,
                         val indexFunction: (Entity => Index),
                         fs: FileSystem, path: Path,
-                        runtimeConfig: RuntimeConfig) extends EntityCache {
+                        runtimeConfig: RuntimeLinkingConfig) extends EntityCache {
+  
+  override def entitySchema = entityDesc
 
   private val logger = Logger.getLogger(getClass.getName)
 
@@ -81,7 +82,7 @@ class HadoopEntityCache(val entityDesc: SparqlEntitySchema,
   }
 
   override def clear() {
-    throw new UnsupportedOperationException()
+    // throw new UnsupportedOperationException()
   }
 
   override def close() { }

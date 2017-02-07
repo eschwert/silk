@@ -15,18 +15,19 @@
 package org.silkframework.server.model
 
 import org.silkframework.cache.MemoryEntityCache
-import org.silkframework.config.{LinkSpecification, LinkingConfig}
+import org.silkframework.config.LinkSpec
 import org.silkframework.entity.Link
-import org.silkframework.execution.{Loader, Matcher}
+import org.silkframework.rule.execution.{Loader, Matcher}
+import org.silkframework.rule.{LinkSpec, LinkingConfig}
 import org.silkframework.util.DPair
 
 /**
  * Holds the dataset of a link specification.
  */
-class Dataset(val name: String, config: LinkingConfig, linkSpec: LinkSpecification, writeUnmatchedEntities: Boolean,
+class Dataset(val name: String, config: LinkingConfig, linkSpec: LinkSpec, writeUnmatchedEntities: Boolean,
               matchOnlyInProvidedGraph: Boolean) {
 
-  private val sources = linkSpec.dataSelections.map(_.sourceId).map(config.source)
+  private val sources = linkSpec.dataSelections.map(_.inputId).map(config.source)
 
   private val entityDescs = linkSpec.entityDescriptions
 

@@ -15,9 +15,9 @@
 package org.silkframework.learning.active.linkselector
 
 import org.silkframework.entity._
-import org.silkframework.evaluation.ReferenceEntities
-import org.silkframework.plugins.aggegrator.MinimumAggregator
-import org.silkframework.plugins.distance.equality.EqualityMetric
+import org.silkframework.rule.evaluation.ReferenceEntities
+import org.silkframework.rule.plugins.aggegrator.MinimumAggregator
+import org.silkframework.rule.plugins.distance.equality.EqualityMetric
 import org.silkframework.rule.input.PathInput
 import org.silkframework.rule.similarity.{Aggregation, Comparison}
 import org.silkframework.util.{DPair, Uri}
@@ -81,9 +81,9 @@ object LinkSelectorTest extends App {
     )
   }
 
-  def entities(label1: String, date1: String, label2: String, date2: String) = {
-    val sourceEntityDesc = EntitySchema(typeUri = Uri(""), IndexedSeq(Path.parse("?a/<label>"), Path.parse("?a/<date>")))
-    val targetEntityDesc = EntitySchema(typeUri = Uri(""), IndexedSeq(Path.parse("?b/<label>"), Path.parse("?b/<date>")))
+  def entities(label1: String, date1: String, label2: String, date2: String): DPair[Entity] = {
+    val sourceEntityDesc = EntitySchema(typeUri = Uri(""), IndexedSeq(Path.parse("?a/<label>").asStringTypedPath, Path.parse("?a/<date>").asStringTypedPath))
+    val targetEntityDesc = EntitySchema(typeUri = Uri(""), IndexedSeq(Path.parse("?b/<label>").asStringTypedPath, Path.parse("?b/<date>").asStringTypedPath))
 
     DPair(
       source = new Entity(label1 + date1, IndexedSeq(Seq(label1), Seq(date1)), sourceEntityDesc),

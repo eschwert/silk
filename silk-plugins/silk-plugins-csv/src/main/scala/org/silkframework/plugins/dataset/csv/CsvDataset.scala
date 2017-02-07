@@ -1,10 +1,8 @@
 package org.silkframework.plugins.dataset.csv
 
-import java.io.File
-
 import org.silkframework.dataset._
 import org.silkframework.runtime.plugin.{Param, Plugin}
-import org.silkframework.runtime.resource.{FileResource, Resource}
+import org.silkframework.runtime.resource.{WritableResource, Resource}
 
 import scala.io.Codec
 
@@ -16,26 +14,30 @@ import scala.io.Codec
 )
 case class CsvDataset
 (
-    @Param("File name inside the resources directory. In the Workbench, this is the '(projectDir)/resources' directory.")
-    file: Resource,
-    @Param("Comma-separated list of URL-encoded properties. If not provided, the list of properties is read from the first line.")
+  @Param("File name inside the resources directory. In the Workbench, this is the '(projectDir)/resources' directory.")
+    file: WritableResource,
+  @Param("Comma-separated list of URL-encoded properties. If not provided, the list of properties is read from the first line.")
     properties: String = "",
-    @Param("The character that is used to separate values. If not provided, defaults to ',', i.e., comma-separated values. '\t' for specifying tab-separated values, is also supported.")
+  @Param("The character that is used to separate values. If not provided, defaults to ',', i.e., comma-separated values. '\\t' for specifying tab-separated values, is also supported.")
     separator: String = ",",
-    @Param("The character that is used to separate the parts of array values.")
+  @Param("The character that is used to separate the parts of array values.")
     arraySeparator: String = "",
-    @Param("Character used to quote values.")
-    quote: String = "",
-    @Param(" A URI prefix that should be used for generating schema entities like classes or properties, e.g. http://www4.wiwiss.fu-berlin.de/ontology/")
+  @Param("Character used to quote values.")
+    quote: String = "\"",
+  @Param(" A URI prefix that should be used for generating schema entities like classes or properties, e.g. http://www4.wiwiss.fu-berlin.de/ontology/")
     prefix: String = "",
-    @Param("A pattern used to construct the entity URI. If not provided the prefix + the line number is used. An example of such a pattern is 'urn:zyx:{id}' where *id* is a name of a property.")
+  @Param("A pattern used to construct the entity URI. If not provided the prefix + the line number is used. An example of such a pattern is 'urn:zyx:{id}' where *id* is a name of a property.")
     uri: String = "",
-    @Param("A regex filter used to match rows from the CSV file. If not set all the rows are used.")
+  @Param("A regex filter used to match rows from the CSV file. If not set all the rows are used.")
     regexFilter: String = "",
-    @Param("The file encoding, e.g., UTF8, ISO-8859-1")
+  @Param("The file encoding, e.g., UTF8, ISO-8859-1")
     charset: String = "UTF-8",
-    @Param("The number of lines to skip in the beginning, e.g. copyright, meta information etc.")
-    linesToSkip: Int = 0) extends DatasetPlugin with DatasetPluginAutoConfigurable[CsvDataset] {
+  @Param("The number of lines to skip in the beginning, e.g. copyright, meta information etc.")
+    linesToSkip: Int = 0,
+  @Param("The maximum characters per column. If there are more characters found, the parser will fail.")
+    maxCharsPerColumn: Int = 4096,
+  @Param("If set to true then the parser will ignore lines that have syntax errors or do not have to correct number of fields according to the current config.")
+    ignoreBadLines: Boolean = false) extends Dataset with DatasetPluginAutoConfigurable[CsvDataset] with WritableResourceDataset {
 
   private val sepChar =
     if (separator == "\\t") '\t'
@@ -54,9 +56,9 @@ case class CsvDataset
 
   private val codec = Codec(charset)
 
-  private val settings = CsvSettings(sepChar, arraySeparatorChar, quoteChar)
+  private val settings = CsvSettings(sepChar, arraySeparatorChar, quoteChar, maxCharsPerColumn = Some(maxCharsPerColumn))
 
-  override def source: DataSource = new CsvSource(file, settings, properties, prefix, uri, regexFilter, codec, skipLinesBeginning = linesToSkip)
+  override def source: DataSource = new CsvSource(file, settings, properties, prefix, uri, regexFilter, codec, skipLinesBeginning = linesToSkip, ignoreBadLines = ignoreBadLines)
 
   override def linkSink: LinkSink = new CsvLinkSink(file, settings)
 
@@ -65,24 +67,31 @@ case class CsvDataset
   override def clear(): Unit = {}
 
   /**
-   * returns an auto-configured version of this plugin
-   */
+    * returns an auto-configured version of this plugin
+    */
   override def autoConfigured: CsvDataset = {
     val csvSource = new CsvSource(file, settings, properties, prefix, uri, regexFilter, codec,
       detectSeparator = true, detectSkipLinesBeginning = true, fallbackCodecs = List(Codec.ISO8859), maxLinesToDetectCodec = Some(1000))
     val detectedSettings = csvSource.csvSettings
     val detectedSeparator = detectedSettings.separator.toString
+    // Skip one more line if header was detected and property list set
+    val skipHeader = 0 // if (csvSource.propertyList.nonEmpty) 1 else 0
     CsvDataset(
       file = file,
-      properties = csvSource.propertyList.mkString(","),
-      separator = detectedSeparator,
+      // Uncommented to work with schema changes in datasets
+      properties = "", // CsvSourceHelper.serialize(csvSource.propertyList),
+      separator = if (detectedSeparator == "\t") "\\t" else detectedSeparator,
       arraySeparator = arraySeparator,
       quote = quote,
       prefix = prefix,
       uri = uri,
       regexFilter = regexFilter,
       charset = csvSource.codecToUse.name,
-      linesToSkip = csvSource.skipLinesAutomatic.getOrElse(linesToSkip)
+      linesToSkip = csvSource.skipLinesAutomatic.map(_ + skipHeader).getOrElse(linesToSkip)
     )
+  }
+
+  override def replaceWritableResource(writableResource: WritableResource): WritableResourceDataset = {
+    this.copy(file = writableResource)
   }
 }

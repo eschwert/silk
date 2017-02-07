@@ -1,3 +1,5 @@
 package controllers.rules
 
-object Assets extends controllers.AssetsBuilder
+import controllers.core.ErrorHandler
+
+class Assets extends controllers.AssetsBuilder(ErrorHandler)

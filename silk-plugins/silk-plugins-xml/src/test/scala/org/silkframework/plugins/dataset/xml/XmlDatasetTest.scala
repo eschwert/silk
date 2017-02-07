@@ -8,7 +8,7 @@ import org.silkframework.util.Uri
 
 class XmlDatasetTest extends FlatSpec with Matchers {
 
-  val resourceLoader = new ClasspathResourceLoader("org/silkframework/plugins/dataset/xml")
+  val resourceLoader = ClasspathResourceLoader("org/silkframework/plugins/dataset/xml")
 
   val personId = Path.parse("?a/<ID>")
 
@@ -23,7 +23,7 @@ class XmlDatasetTest extends FlatSpec with Matchers {
   val entityDesc =
     EntitySchema(
       typeUri = Uri(""),
-      paths = IndexedSeq(personId, personName, personBirth, personDeath, personValue)
+      typedPaths = IndexedSeq(personId, personName, personBirth, personDeath, personValue).map(_.asStringTypedPath)
     )
 
   "XmlDatasetTest" should "read direct children of the root element, if the base path is empty." in {
@@ -54,7 +54,8 @@ class XmlDatasetTest extends FlatSpec with Matchers {
   }
 
   "XmlDatasetTest" should "support property filters" in {
-    entities().head.evaluate(personValue) should equal(Seq("V2"))
+    val result = entities().head.evaluate(personValue)
+    result should equal(Seq("V2"))
   }
 
   private def entities(basePath: String = "") = {

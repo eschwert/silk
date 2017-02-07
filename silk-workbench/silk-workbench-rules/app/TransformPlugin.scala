@@ -1,10 +1,9 @@
-import org.silkframework.config.TransformSpecification
+import org.silkframework.rule.TransformSpec
 import plugins.WorkbenchPlugin.{Tab, TaskActions}
 import plugins.{Context, WorkbenchPlugin}
+import controllers.rules.routes.Assets
 
 case class TransformPlugin() extends WorkbenchPlugin {
-
-  override def routes = Map("rules" -> rules.Routes, "transform" -> transform.Routes)
 
   override def tasks = {
     Seq(TransformTaskActions)
@@ -12,9 +11,9 @@ case class TransformPlugin() extends WorkbenchPlugin {
 
   override def tabs(context: Context[_]) = {
     var tabs = List[Tab]()
-    if(context.task.data.isInstanceOf[TransformSpecification]) {
+    if(context.task.data.isInstanceOf[TransformSpec]) {
       val p = context.project.name
-      val t = context.task.name
+      val t = context.task.id
       tabs ::= Tab("Editor", s"transform/$p/$t/editor")
       tabs ::= Tab("Evaluate", s"transform/$p/$t/evaluate")
       tabs ::= Tab("Execute", s"transform/$p/$t/execute")
@@ -22,13 +21,13 @@ case class TransformPlugin() extends WorkbenchPlugin {
     tabs.reverse
   }
 
-  object TransformTaskActions extends TaskActions[TransformSpecification] {
+  object TransformTaskActions extends TaskActions[TransformSpec] {
 
     /** The name of the task type */
     override def name: String = "Transform Task"
 
     /** Path to the task icon */
-    override def icon: String = "img/arrow-skip.png"
+    override def icon: String = Assets.at("img/arrow-skip.png").url
 
     /** The path to the dialog for creating a new task. */
     override def createDialog(project: String) =
@@ -48,9 +47,9 @@ case class TransformPlugin() extends WorkbenchPlugin {
 
     /** Retrieves a list of properties as key-value pairs for this task to be displayed to the user. */
     override def properties(task: Any): Seq[(String, String)] = {
-      val transformSpec = task.asInstanceOf[TransformSpecification]
+      val transformSpec = task.asInstanceOf[TransformSpec]
       Seq(
-        ("Source", transformSpec.selection.datasetId.toString),
+        ("Source", transformSpec.selection.inputId.toString),
         ("Type", transformSpec.selection.typeUri.toString),
         ("Restriction", transformSpec.selection.restriction.toString)
       )

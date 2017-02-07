@@ -2,8 +2,8 @@ package org.silkframework.plugins.dataset.rdf
 
 import com.hp.hpl.jena.query.DatasetFactory
 import org.apache.jena.riot.{Lang, RDFDataMgr, RDFLanguages}
-import org.silkframework.dataset.DataSource
-import org.silkframework.dataset.rdf.RdfDatasetPlugin
+import org.silkframework.dataset.{DataSource, TripleSink, TripleSinkDataset}
+import org.silkframework.dataset.rdf.{RdfDataset, SparqlEndpoint, SparqlParams}
 import org.silkframework.entity.rdf.SparqlRestriction
 import org.silkframework.entity.{Entity, EntitySchema, Path}
 import org.silkframework.plugins.dataset.rdf.endpoint.{JenaEndpoint, JenaModelEndpoint}
@@ -16,14 +16,17 @@ import org.silkframework.util.Uri
 @Plugin(
   id = "file",
   label = "RDF dump",
-  description = "Dataset which retrieves and writes all entities from/to an RDF file.")
+  description =
+"""Dataset which retrieves and writes all entities from/to an RDF file.
+The dataset is loaded in-memory and thus the size is restricted by the available memory.
+Large datasets should be loaded into an external RDF store and retrieved using the Sparql dataset instead.""")
 case class FileDataset(
   @Param("File name inside the resources directory. In the Workbench, this is the '(projectDir)/resources' directory.")
   file: WritableResource,
   @Param("""Supported input formats are: "RDF/XML", "N-Triples", "N-Quads", "Turtle". Supported output formats are: "N-Triples".""")
   format: String,
   @Param("The graph name to be read. If not provided, the default graph will be used. Must be provided if the format is N-Quads.")
-  graph: String = "") extends RdfDatasetPlugin {
+  graph: String = "") extends RdfDataset with TripleSinkDataset {
 
   /** The RDF format of the given resource. */
   private val lang = {
@@ -47,7 +50,7 @@ case class FileDataset(
       throw new IllegalArgumentException(s"Unsupported output format. Currently only N-Triples is supported.")
   }
 
-  override def sparqlEndpoint = {
+  override def sparqlEndpoint: JenaEndpoint = {
     // Load data set
     val dataset = DatasetFactory.createMem()
     val inputStream = file.load
@@ -56,8 +59,8 @@ case class FileDataset(
 
     // Retrieve model
     val model =
-      if (!graph.trim.isEmpty) dataset.getNamedModel(graph)
-      else dataset.getDefaultModel
+      if (!graph.trim.isEmpty) { dataset.getNamedModel(graph) }
+      else { dataset.getDefaultModel }
 
     new JenaModelEndpoint(model)
   }
@@ -82,7 +85,10 @@ case class FileDataset(
 
     override def retrieveByUri(entitySchema: EntitySchema, entities: Seq[Uri]): Seq[Entity] = {
       load()
-      EntityRetriever(endpoint).retrieve(entitySchema, entities, None).toSeq
+      if(entities.isEmpty)
+        Seq.empty
+      else
+        EntityRetriever(endpoint).retrieve(entitySchema, entities, None).toSeq
     }
 
     override def retrievePaths(t: Uri, depth: Int, limit: Option[Int]): IndexedSeq[Path] = {
@@ -106,4 +112,6 @@ case class FileDataset(
       }
     }
   }
+
+  override def tripleSink: TripleSink = new FormattedEntitySink(file, formatter)
 }

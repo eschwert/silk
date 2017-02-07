@@ -16,6 +16,8 @@ package org.silkframework.util
 
 import org.silkframework.config.Prefixes
 
+import scala.language.implicitConversions
+
 /**
  * Represents a URI.
  *
@@ -77,6 +79,8 @@ object Uri {
     if (str.startsWith("<")) {
       fromURI(str.substring(1, str.length - 1))
     } else if(!str.contains(':')) {
+      fromURI(str)
+    } else if(str.startsWith("http")) {
       fromURI(str)
     } else {
       fromQualifiedName(str, prefixes)

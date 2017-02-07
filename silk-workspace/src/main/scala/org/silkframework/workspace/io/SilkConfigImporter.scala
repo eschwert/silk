@@ -14,7 +14,7 @@
 
 package org.silkframework.workspace.io
 
-import org.silkframework.config.LinkingConfig
+import org.silkframework.rule.LinkingConfig
 import org.silkframework.workspace.Project
 
 /**
@@ -27,17 +27,17 @@ object SilkConfigImporter {
 
     //Add all sources
     for(source <- config.sources) {
-      project.addTask(source.id, source)
+      project.addTask(source.id, source.plugin)
     }
 
     //Add all outputs
     for(output <- config.outputs) {
-      project.addTask(output.id, output)
+      project.addTask(output.id, output.plugin)
     }
 
     //Add all linking tasks
     for(linkSpec <- config.linkSpecs) {
-      project.addTask(linkSpec.id, linkSpec)
+      project.addTask(linkSpec.id, linkSpec.data)
     }
   }
 }
