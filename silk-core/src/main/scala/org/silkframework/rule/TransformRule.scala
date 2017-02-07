@@ -134,8 +134,18 @@ case class TypeMapping(name: Identifier = "type", typeUri: Uri = "http://www.w3.
  */
 case class ComplexMapping(name: Identifier = "mapping", operator: Input, target: Option[Uri] = None) extends TransformRule
 
-// TODO document
-case class ChildMapping(name: Identifier = "child", relativePath: Path = Path(Nil), targetProperty: Uri = "hasChild",
+/**
+  * A hierarchical mapping.
+  *
+  * Generates child entities that are connected to the parent entity using the targetProperty.
+  * The properties of the child entities are mapped by the child mappings.
+  *
+  * @param name The name of this mapping.
+  * @param relativePath All child mappings are relative to this path.
+  * @param targetProperty The property that is used to attach the child entities.
+  * @param childRules The child rules.
+  */
+case class HierarchicalMapping(name: Identifier = "mapping", relativePath: Path = Path(Nil), targetProperty: Uri = "hasChild",
                         override val childRules: Seq[TransformRule]) extends TransformRule {
 
   override val operator = PathInput(path = relativePath)
